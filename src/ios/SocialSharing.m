@@ -68,6 +68,15 @@ static NSString *const kShareOptionIPadCoordinates = @"iPadCoordinates";
    ];
 }
 
+- (id)activityViewControllerPlaceholderItem:(UIActivityViewController *)activityViewController{
+    return _metadata;
+}
+
+- (LPLinkMetadata *)activityViewControllerLinkMetadata:(UIActivityViewController *)activityViewController{
+    return _metadata;
+}
+
+
 - (void)shareInternal:(CDVInvokedUrlCommand*)command withOptions:(NSDictionary*)options isBooleanResponse:(BOOL)boolResponse {
     if (!NSClassFromString(@"UIActivityViewController")) {
       CDVPluginResult * pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"not available"];
@@ -87,35 +96,62 @@ static NSString *const kShareOptionIPadCoordinates = @"iPadCoordinates";
     } else {
       iPadCoordinates = @[];
     }
-
-
-    NSMutableArray *activityItems = [[NSMutableArray alloc] init];
-
-    if (message != (id)[NSNull null] && message != nil) {
-    [activityItems addObject:message];
-    }
-
-    if (filenames != (id)[NSNull null] && filenames != nil && filenames.count > 0) {
-      NSMutableArray *files = [[NSMutableArray alloc] init];
-      for (NSString* filename in filenames) {
-        NSObject *file = [self getImage:filename];
-        if (file == nil) {
-          file = [self getFile:filename];
-        }
-        if (file != nil) {
-          [files addObject:file];
-        }
-      }
-      [activityItems addObjectsFromArray:files];
-    }
-
-    if (urlString != (id)[NSNull null] && urlString != nil) {
-        [activityItems addObject:[NSURL URLWithString:[urlString SSURLEncodedString]]];
-    }
-
+    
+    
     UIActivity *activity = [[UIActivity alloc] init];
     NSArray *applicationActivities = [[NSArray alloc] initWithObjects:activity, nil];
-    UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:activityItems applicationActivities:applicationActivities];
+    UIActivityViewController *activityVC;
+    if (@available(iOS 13.0, *)) {
+        _metadata = [[LPLinkMetadata alloc] init];
+        
+        NSString *path = [[NSBundle mainBundle] pathForResource:@"shareicon" ofType:@"jpg"];
+        if(path == nil){
+          path = [[NSBundle mainBundle] pathForResource:@"shareicon" ofType:@"png"];
+          if(path == nil){
+            path = [[NSBundle mainBundle] pathForResource:@"shareicon" ofType:@"jpeg"];
+          }
+        }
+        
+        if(path != nil){
+            _metadata.iconProvider = [[NSItemProvider alloc] initWithContentsOfURL:[[NSURL alloc] initFileURLWithPath: path]];
+        }
+                
+        if (message != (id)[NSNull null] && message != nil) {
+            _metadata.title = message;
+        }
+        if (urlString != (id)[NSNull null] && urlString != nil) {
+            _metadata.originalURL = [NSURL URLWithString:[urlString SSURLEncodedString]];
+        }
+        activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[self] applicationActivities:applicationActivities];
+        
+    } else {
+        NSMutableArray *activityItems = [[NSMutableArray alloc] init];
+        if (message != (id)[NSNull null] && message != nil) {
+            [activityItems addObject:message];
+        }
+        if (urlString != (id)[NSNull null] && urlString != nil) {
+            [activityItems addObject:[NSURL URLWithString:[urlString SSURLEncodedString]]];
+        }
+        if (filenames != (id)[NSNull null] && filenames != nil && filenames.count > 0) {
+          NSMutableArray *files = [[NSMutableArray alloc] init];
+          for (NSString* filename in filenames) {
+            NSObject *file = [self getImage:filename];
+            if (file == nil) {
+              file = [self getFile:filename];
+            }
+            if (file != nil) {
+              [files addObject:file];
+            }
+          }
+          [activityItems addObjectsFromArray:files];
+            activityVC = [[UIActivityViewController alloc] initWithActivityItems:activityItems applicationActivities:applicationActivities];
+        }
+    }
+
+    
+
+    
+    
     if (subject != (id)[NSNull null] && subject != nil) {
       [activityVC setValue:subject forKey:@"subject"];
     }
@@ -770,9 +806,9 @@ static NSString *const kShareOptionIPadCoordinates = @"iPadCoordinates";
           file = [NSURL fileURLWithPath:[self storeInFile:[[name componentsSeparatedByString:@"="] lastObject] fileData:fileData]];
         }
       } else {
-	    NSString *name = (NSString*)[[fileName componentsSeparatedByString: @"/"] lastObject];
+        NSString *name = (NSString*)[[fileName componentsSeparatedByString: @"/"] lastObject];
         file = [NSURL fileURLWithPath:[self storeInFile:[name componentsSeparatedByString: @"?"][0] fileData:fileData]];
-	  }
+      }
     } else if ([fileName hasPrefix:@"www/"]) {
       NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
       NSString *fullPath = [NSString stringWithFormat:@"%@/%@", bundlePath, fileName];
